@@ -458,6 +458,7 @@ class FetchPrice(commands.Cog):
         plt.ylabel("Silvers")
         plt.legend(bbox_to_anchor=(1.02, 1), loc="upper left")
         plt.savefig("plot.png", bbox_inches="tight")
+        plt.close()
 
         return
 

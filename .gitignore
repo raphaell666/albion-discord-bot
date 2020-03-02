@@ -2,3 +2,5 @@
 plot.png
 *.log
 config.ini
+goldplot.png
+cogs/fetchprice.py
