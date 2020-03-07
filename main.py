@@ -55,7 +55,10 @@ async def on_ready():
         pass
 
     # Activity to 'Ready'
-    await client.change_presence(activity=discord.Game("Ready"))
+    #await client.change_presence(activity=discord.Game("Ready"))
+    
+    # Status to 'do not disturb'
+    await client.change_presence(status=discord.Status.dnd)
 
     # Login message in console
     print(f"Logged in as {client.user}.\nConnected to:")

@@ -35,9 +35,9 @@ class FetchPrice(commands.Cog):
         self.client = client
 
         # Load config.ini and get configs
-        currentPath = os.path.dirname(os.path.realpath(__file__))
+        currentPath = os.getcwd() #os.path.dirname(os.path.realpath(__file__))
         configs = configparser.ConfigParser()
-        configs.read(os.path.dirname(currentPath) + "/config.ini")
+        configs.read(os.path.join(currentPath,"config.ini"))
 
         debugChannel = int(configs["Channels"]["debugChannelID"])
         workChannel = [
@@ -50,7 +50,7 @@ class FetchPrice(commands.Cog):
         self.debug = configs["General"].getboolean("debug")
 
         # API URLs
-        self.iconURL = "https://gameinfo.albiononline.com/api/gameinfo/items/"
+        self.itemURL = "https://gameinfo.albiononline.com/api/gameinfo/items/"
         # Latest
         self.apiURL = "https://www.albion-online-data.com/api/v2/stats/prices/"
         self.locationURL = "?locations=Caerleon,Lymhurst,Martlock,Bridgewatch,FortSterling,Thetford,ArthursRest,MerlynsRest,MorganasRest,BlackMarket"
@@ -60,7 +60,7 @@ class FetchPrice(commands.Cog):
 
         # Bot will search items through this list
         # There are also different localization names
-        self.itemList = os.path.dirname(currentPath) + "/item_data.json"
+        self.itemList = os.path.join(currentPath,"item_data.json")
 
     @commands.command(
         aliases=["price", "quick",]
@@ -90,16 +90,22 @@ class FetchPrice(commands.Cog):
         await ctx.channel.trigger_typing()
 
         # difflib for input search
-        itemNames, itemIDs = self.item_match(item)
+        itemNames, itemIDs = self.item_match_exact(item)
 
         # Grab prices from full URL
         fullURL = self.apiURL + itemIDs[0] + self.locationURL
         with urllib.request.urlopen(fullURL) as url:
             data = json.loads(url.read().decode())
+            
+        # Grab correct item name
+        itemDataURL = self.itemURL + itemIDs[0] + "/data"
+        with urllib.request.urlopen(itemDataURL) as url:
+            itemData = json.loads(url.read().decode())
+        correctItemName=itemData['localizedNames']['EN-US']
 
         # Create Discord embed
         em = discord.Embed(
-            title=f"Current Prices for:\n**{itemNames[0]} ({itemIDs[0]})**"
+            title=f"Current Prices for:\n**{correctItemName} ({itemIDs[0]})**"
         )
 
         # Extracting locations' timestamps and minimum sell order prices
@@ -232,10 +238,10 @@ class FetchPrice(commands.Cog):
             # Adding thumbnail
             # 'LEVEL1@1' itemID is 'LEVEL1' in item icon URL
             # So we remove the last 2 char
-            if "@" in itemIDs[0]:
-                iconFullURL = self.iconURL + itemIDs[0][:-2]
-            else:
-                iconFullURL = self.iconURL + itemIDs[0]
+            #if "@" in itemIDs[0]:
+            #    iconFullURL = self.iconURL + itemIDs[0][:-2]
+            #else:
+            iconFullURL = self.itemURL + itemIDs[0]
 
             em.set_thumbnail(url=iconFullURL)
 
@@ -313,7 +319,7 @@ class FetchPrice(commands.Cog):
                 # Max distance is 1
                 jDists.append([1, i])
 
-            # Calculate distance for item name (LocalizedNames)
+            # Calculate distance for item name (LocalizedNames, EN-US)
             try:
                 w1 = inputWord.lower()
 
@@ -341,6 +347,41 @@ class FetchPrice(commands.Cog):
         itemNames = [data[jDist[1]]["LocalizedNames"]["EN-US"] for jDist in jDists[:4]]
         itemIDs = [data[jDist[1]]["UniqueName"] for jDist in jDists[:4]]
 
+        return itemNames, itemIDs
+    
+    def item_match_exact(self, inputWord):
+    
+        # Open list of items
+        try:
+            with open(self.itemList, "r", encoding="utf-8") as inFile:
+                data = json.load(inFile)
+        except Exception as e:
+            print(e)
+    
+        itemNames = []
+        itemIDs = []
+        
+        for item in data:
+            try:
+                dataItemName=item["LocalizedNames"]["EN-US"]
+                if all([word in dataItemName.lower() for word in inputWord.lower().split()]):
+                    itemNames.append(dataItemName)
+                    itemIDs.append(item["UniqueName"])
+                    print("\nFound "+dataItemName+", stopping exact search...")
+                    break
+            except:
+                continue
+            
+        print("\nSearching for additional suggestions...")
+        suggNames, suggIDs = self.item_match(inputWord)
+        
+        for i in range(len(suggIDs)):
+            if suggIDs[i] not in itemIDs:
+                itemIDs.append(suggIDs[i])
+                itemNames.append(suggNames[i])
+                
+        print(itemNames)
+        print(itemIDs)
         return itemNames, itemIDs
 
     def grabHistory(self, item, itemName):
